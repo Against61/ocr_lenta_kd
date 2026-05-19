@@ -1,0 +1,34 @@
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+ARG LLAMA_CPP_REPO=https://github.com/ggml-org/llama.cpp
+ARG LLAMA_CPP_REF=b9060
+ARG LLAMA_CPP_JOBS=4
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        git \
+        ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+
+RUN git clone --depth 1 --branch "${LLAMA_CPP_REF}" "${LLAMA_CPP_REPO}" llama.cpp
+
+WORKDIR /opt/llama.cpp
+
+RUN cmake -S . -B build -G Ninja \
+        -DGGML_CUDA=ON \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DLLAMA_BUILD_TOOLS=OFF \
+        -DLLAMA_BUILD_EXAMPLES=ON \
+    && cmake --build build --config Release -j"${LLAMA_CPP_JOBS}"
+
+EXPOSE 8080
+
+CMD ["/opt/llama.cpp/build/bin/llama-server"]

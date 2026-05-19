@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "price-tag-pipeline"
+version = "0.1.0"
+description = "Price tag detection, tracking, crop selection, and OCR pipeline."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "numpy>=1.26,<3.0",
+  "opencv-python-headless>=4.10,<5.0",
+  "onnxruntime>=1.18,<2.0",
+  "Pillow>=10.0,<12.0",
+  "ncnn>=1.0,<2.0",
+  "python-multipart>=0.0.9,<1.0",
+  "uvicorn[standard]>=0.30,<1.0",
+  "zxing-cpp>=2.2,<4.0",
+]
+
+[project.scripts]
+price-tag-pipeline = "price_tag_pipeline.run_pipeline:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["price_tag_pipeline*"]
