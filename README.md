@@ -119,13 +119,13 @@ python tools/track_price_tags.py \
 
 ### 2. Запуск с frontend
 
-Frontend отправляет видео в FastAPI backend и скачивает CSV. Сейчас frontend ожидает backend на `http://localhost:8041/video/analyze`.
+Frontend отправляет видео в FastAPI backend, получает `job_id`, опрашивает статус обработки и затем скачивает CSV. По умолчанию UI вызывает backend через same-origin путь `/api/video/jobs`; в dev-режиме Vite проксирует `/api` на `http://localhost:8020`.
 
 Запустите backend:
 
 ```bash
 PRICE_TAG_API_PIPELINE_ARGS="--detector onnx --run-ocr" \
-uvicorn price_tag_pipeline.api.main:app --host 0.0.0.0 --port 8041
+uvicorn price_tag_pipeline.api.main:app --host 0.0.0.0 --port 8020
 ```
 
 Если OCR/VLM пока не нужен, уберите `--run-ocr` из `PRICE_TAG_API_PIPELINE_ARGS`.
@@ -137,7 +137,15 @@ cd frontend
 npm run dev
 ```
 
-Откройте `http://localhost:5173`, загрузите видео и дождитесь CSV. Настройки pipeline для backend передаются через `PRICE_TAG_API_PIPELINE_ARGS`, а параметры OCR можно задавать через env-переменные `PRICE_TAG_OCR_BASE_URL`, `PRICE_TAG_OCR_MODEL`, `PRICE_TAG_OCR_API_KEY` и другие.
+Откройте `http://localhost:8021`, загрузите видео и дождитесь CSV. Для доступа с другого компьютера используйте IP или домен сервера: `http://<server-ip>:8021`. Настройки pipeline для backend передаются через `PRICE_TAG_API_PIPELINE_ARGS`, а параметры OCR можно задавать через env-переменные `PRICE_TAG_OCR_BASE_URL`, `PRICE_TAG_OCR_MODEL`, `PRICE_TAG_OCR_API_KEY` и другие.
+
+Production-вариант через nginx:
+
+```bash
+docker compose up --build frontend
+```
+
+После запуска UI доступен на `http://<server-ip>:8021/` и `https://<server-ip>:8443/`, а backend закрыт за nginx-прокси `/api`. Порты можно переопределить через `FRONTEND_HTTP_PORT` и `FRONTEND_HTTPS_PORT`, например `FRONTEND_HTTP_PORT=80 FRONTEND_HTTPS_PORT=443 docker compose up --build frontend`, если эти порты свободны или обслуживаются внешним reverse proxy.
 
 ### 3. Расширенный запуск и Docker
 

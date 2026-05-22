@@ -1,0 +1,15 @@
+
+> price-tag-vision-frontend@0.1.0 dev
+> vite --host 0.0.0.0 --host 0.0.0.0 --port 8021
+
+
+  VITE v6.4.2  ready in 163 ms
+
+  ➜  Local:   http://localhost:8021/
+  ➜  Network: http://192.168.0.201:8021/
+  ➜  Network: http://172.20.0.1:8021/
+  ➜  Network: http://172.17.0.1:8021/
+  ➜  Network: http://172.18.0.1:8021/
+  ➜  Network: http://172.21.0.1:8021/
+  ➜  Network: http://172.23.0.1:8021/
+  ➜  Network: http://172.25.0.1:8021/

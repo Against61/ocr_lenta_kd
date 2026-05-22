@@ -1,13 +1,24 @@
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "${FRONTEND_HTTP_PORT:-8021}:80"
+      - "${FRONTEND_HTTPS_PORT:-8443}:443"
+    depends_on:
+      price-tag-pipeline:
+        condition: service_started
+
   price-tag-pipeline:
     build:
       context: .
     entrypoint: ["uvicorn"]
-    command: ["price_tag_pipeline.api.main:app", "--host", "127.0.0.1", "--port", "8041", "--reload"]
+    command: ["price_tag_pipeline.api.main:app", "--host", "0.0.0.0", "--port", "8020", "--reload"]
     ports:
-      - "8041:8041"
+      - "127.0.0.1:8020:8020"
     environment:
-      PRICE_TAG_OCR_BASE_URL: "${PRICE_TAG_OCR_BASE_URL:-http://host.docker.internal:1234/v1}"
+      PRICE_TAG_OCR_BASE_URL: "${PRICE_TAG_OCR_BASE_URL:-http://llama-cpp:8080/v1}"
       PRICE_TAG_OCR_API_KEY: "${PRICE_TAG_OCR_API_KEY:-not-needed}"
       PRICE_TAG_OCR_MODEL: "${PRICE_TAG_OCR_MODEL:-local-vlm}"
       PRICE_TAG_OCR_MAX_TOKENS: "${PRICE_TAG_OCR_MAX_TOKENS:-900}"
@@ -16,9 +27,13 @@ services:
       PRICE_TAG_OCR_RETRIES: "${PRICE_TAG_OCR_RETRIES:-1}"
       PRICE_TAG_OCR_RESPONSE_FORMAT: "${PRICE_TAG_OCR_RESPONSE_FORMAT:-false}"
       PRICE_TAG_OCR_DISABLE_REASONING: "${PRICE_TAG_OCR_DISABLE_REASONING:-true}"
+      PRICE_TAG_API_PIPELINE_ARGS: "${PRICE_TAG_API_PIPELINE_ARGS:---detector onnx --frame-step 3 --run-ocr}"
       LLAMA_CPP_BASE_URL: "${LLAMA_CPP_BASE_URL:-http://llama-cpp:8080/v1}"
       LLAMA_CPP_API_KEY: "${LLAMA_CPP_API_KEY:-not-needed}"
       LLAMA_CPP_MODEL: "${LLAMA_CPP_MODEL:-local-vlm}"
+    depends_on:
+      llama-cpp:
+        condition: service_healthy
     volumes:
       - ./models:/app/models:ro
       - ./runs:/app/runs

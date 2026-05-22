@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--selector")
     parser.add_argument("--cache-dir", required=True)
     parser.add_argument("--poll-interval", type=float, default=5.0)
-    parser.add_argument("--idle-timeout", type=float, default=1800.0)
+    parser.add_argument("--idle-timeout", type=float, default=3600.0)
     args = parser.parse_args()
     if not args.filename and not args.selector:
         parser.error("either --filename or --selector is required")

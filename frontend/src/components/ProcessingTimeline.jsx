@@ -1,24 +1,17 @@
 import { Check, Circle, Loader2 } from 'lucide-react';
 
-export default function ProcessingTimeline({ stages, currentStageIndex, progress, isComplete, hasFile }) {
+export default function ProcessingTimeline({ stages, currentStageIndex, isComplete, hasFile }) {
+  const currentLabel = hasFile ? (isComplete ? 'Готово к скачиванию' : stages[currentStageIndex]?.label) : 'Ожидаем видео';
+
   return (
     <section className="panel processing-panel" aria-labelledby="processing-title">
       <div className="section-heading compact">
         <p className="eyebrow">ML-пайплайн</p>
         <h2 id="processing-title">Статус обработки</h2>
+        <p>{currentLabel}</p>
       </div>
 
-      <div className="progress-card">
-        <div className="progress-meta">
-          <span>{hasFile ? (isComplete ? 'Готово к скачиванию' : stages[currentStageIndex]?.label || 'Ожидание') : 'Ожидаем видео'}</span>
-          <strong>{Math.round(progress)}%</strong>
-        </div>
-        <div className="progress-track" aria-label="Прогресс обработки">
-          <span className="progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
-
-      <ol className="timeline">
+      <ol className="timeline" aria-label="Этапы обработки видео">
         {stages.map((stage, index) => {
           const isDone = index < currentStageIndex || isComplete;
           const isActive = index === currentStageIndex && hasFile && !isComplete;

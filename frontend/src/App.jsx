@@ -3,23 +3,26 @@ import Header from './components/Header.jsx';
 import VideoUpload from './components/VideoUpload.jsx';
 import ResultsTable from './components/ResultsTable.jsx';
 import CsvDownloadButton from './components/CsvDownloadButton.jsx';
-import { analyzeVideo } from './utils/api.js';
+import ProcessingTimeline from './components/ProcessingTimeline.jsx';
+import { createVideoJob, getVideoJob, getVideoJobCsv } from './utils/api.js';
 import { parseCsvRows } from './utils/csv.js';
 
 const STAGES = [
-  { label: 'Загрузка видео', description: 'Подготавливаем видео с маршрутом робота к анализу.' },
-  { label: 'Извлечение кадров', description: 'Выбираем кадры из проезда вдоль торговых полок.' },
-  { label: 'Поиск ценников', description: 'Находим ценники на полках с помощью моделей компьютерного зрения.' },
-  { label: 'Распознавание текста/OCR', description: 'Считываем названия товаров и цены с найденных ценников.' },
-  { label: 'Формирование CSV', description: 'Нормализуем строки и оценки уверенности для экспорта.' },
+  { label: 'Загрузка видео', description: 'Передаем файл на сервер обработки.' },
+  { label: 'Извлечение кадров', description: 'Читаем видео и выбираем кадры для анализа.' },
+  { label: 'Поиск ценников', description: 'Находим и трекаем ценники на кадрах.' },
+  { label: 'Распознавание текста и кодов', description: 'Отправляем найденные кропы в OCR/VLM и сканируем коды.' },
+  { label: 'Формирование CSV', description: 'Собираем распознанные поля в итоговый CSV.' },
   { label: 'Готово', description: 'Структурированный датасет ценников готов.' },
 ];
 
-const STAGE_DURATION_MS = 900;
+const STAGE_DURATION_MS = 5000;
+const JOB_POLL_INTERVAL_MS = 5000;
+const VLM_STAGE_INDEX = 3;
+const CSV_STAGE_INDEX = 4;
 
 export default function App() {
   const [file, setFile] = useState(null);
-  const [progress, setProgress] = useState(0);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [rows, setRows] = useState([]);
   const [csvContent, setCsvContent] = useState('');
@@ -34,38 +37,69 @@ export default function App() {
     setRows([]);
     setCsvContent('');
     setError('');
-    setProgress(0);
     setCurrentStageIndex(0);
 
     const controller = new AbortController();
+    let pollTimeout = null;
     const interval = window.setInterval(() => {
-      setProgress((previousProgress) => {
-        const nextProgress = Math.min(previousProgress + 6, 92);
-        const totalSteps = STAGES.length;
-        const nextStage = Math.min(Math.floor(nextProgress / (100 / totalSteps)), totalSteps - 1);
-        setCurrentStageIndex(nextStage);
-        return nextProgress;
-      });
+      setCurrentStageIndex((previousStage) => Math.min(previousStage + 1, VLM_STAGE_INDEX));
     }, STAGE_DURATION_MS);
 
-    analyzeVideo(file, controller.signal)
+    const finishWithCsv = (csv) => {
+      if (controller.signal.aborted) return;
+
+      setCurrentStageIndex(CSV_STAGE_INDEX);
+      setCsvContent(csv);
+      setRows(parseCsvRows(csv));
+      window.setTimeout(() => setCurrentStageIndex(STAGES.length - 1), 300);
+    };
+
+    const handleRequestError = (requestError) => {
+      if (controller.signal.aborted) return;
+
+      setRows([]);
+      setCsvContent('');
+      setError(requestError.message || 'Не удалось обработать видео');
+      setCurrentStageIndex(0);
+    };
+
+    const waitForJobCsv = (jobId) =>
+      new Promise((resolve, reject) => {
+        const pollJob = async () => {
+          try {
+            const job = await getVideoJob(jobId, controller.signal);
+            if (controller.signal.aborted) return;
+
+            if (job.status === 'completed') {
+              resolve(await getVideoJobCsv(jobId, controller.signal));
+              return;
+            }
+
+            if (job.status === 'failed') {
+              reject(new Error(job.error || 'Не удалось обработать видео'));
+              return;
+            }
+
+            pollTimeout = window.setTimeout(pollJob, JOB_POLL_INTERVAL_MS);
+          } catch (requestError) {
+            reject(requestError);
+          }
+        };
+
+        pollJob();
+      });
+
+    createVideoJob(file, controller.signal)
+      .then((job) => {
+        if (controller.signal.aborted) return;
+
+        setCurrentStageIndex(1);
+        return waitForJobCsv(job.job_id);
+      })
       .then((csv) => {
-        if (controller.signal.aborted) return;
-
-        setCsvContent(csv);
-        setRows(parseCsvRows(csv));
-        setCurrentStageIndex(STAGES.length - 1);
-        setProgress(100);
+        if (csv) finishWithCsv(csv);
       })
-      .catch((requestError) => {
-        if (controller.signal.aborted) return;
-
-        setRows([]);
-        setCsvContent('');
-        setError(requestError.message || 'Не удалось обработать видео');
-        setProgress(0);
-        setCurrentStageIndex(0);
-      })
+      .catch(handleRequestError)
       .finally(() => {
         if (!controller.signal.aborted) {
           window.clearInterval(interval);
@@ -74,13 +108,15 @@ export default function App() {
 
     return () => {
       controller.abort();
+      if (pollTimeout !== null) {
+        window.clearTimeout(pollTimeout);
+      }
       window.clearInterval(interval);
     };
   }, [file]);
 
   const resetWorkflow = () => {
     setFile(null);
-    setProgress(0);
     setCurrentStageIndex(0);
     setRows([]);
     setCsvContent('');
@@ -127,11 +163,19 @@ export default function App() {
 
         <section className="workflow-grid">
           <VideoUpload file={file} isProcessing={isProcessing} onFileSelected={setFile} onReset={resetWorkflow} />
+          {(file || error) && (
+            <ProcessingTimeline
+              stages={STAGES}
+              currentStageIndex={currentStageIndex}
+              isComplete={isComplete}
+              hasFile={Boolean(file)}
+            />
+          )}
         </section>
 
         {(isProcessing || error) && (
           <section className={`request-status ${error ? 'error' : ''}`} aria-live="polite">
-            {error ? error : `Видео отправлено на анализ. Прогресс обработки: ${Math.round(progress)}%`}
+            {error ? error : `${STAGES[currentStageIndex]?.label || 'Обработка видео'}...`}
           </section>
         )}
 
