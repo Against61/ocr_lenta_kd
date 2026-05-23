@@ -1,5 +1,6 @@
 services:
   frontend:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile.frontend
@@ -11,6 +12,7 @@ services:
         condition: service_started
 
   price-tag-pipeline:
+    restart: unless-stopped
     build:
       context: .
     entrypoint: ["uvicorn"]
@@ -42,8 +44,8 @@ services:
       - "host.docker.internal:host-gateway"
 
   model-progress:
-    image: "python:3.11-slim"
     restart: "no"
+    image: "python:3.11-slim"
     environment:
       HF_TOKEN: "${HF_TOKEN:-}"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
@@ -66,8 +68,9 @@ services:
         --cache-dir /root/.cache/huggingface
 
   llama-cpp:
+    restart: unless-stopped
     image: "${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}"
-    pull_policy: always
+    pull_policy: "${LLAMA_CPP_PULL_POLICY:-always}"
     ports:
       - "${LLAMA_CPP_PORT:-18080}:8080"
     deploy:
@@ -86,7 +89,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 20
-      start_period: 2m
+      start_period: 2h
     command:
       - -hf
       - "${LLAMA_CPP_HF_MODEL:-unsloth/NVIDIA-Nemotron-3-Nano-Omni-30B-A3B-Reasoning-GGUF}:${LLAMA_CPP_HF_SELECTOR:-UD-Q3_K_M}"
